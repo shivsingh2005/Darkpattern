@@ -8,14 +8,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# Add backend to path for serverless environment
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 logger = logging.getLogger(__name__)
 
-# Lazy import to handle serverless initialization
 _inference_service = None
 
 def get_inference_service():
@@ -24,20 +22,27 @@ def get_inference_service():
         try:
             from pipeline.inference import InferenceService
             _inference_service = InferenceService()
+            logger.info("✅ InferenceService initialized successfully")
+        except FileNotFoundError as e:
+            logger.error(f"❌ Model files not found: {e}")
+            logger.error(f"   Looking in: {Path(__file__).resolve().parents[2]}")
+            raise RuntimeError(f"Model artifacts missing: {e}")
         except Exception as e:
-            logger.error(f"Failed to initialize InferenceService: {e}")
-            raise
+            logger.error(f"❌ Failed to initialize InferenceService: {e}", exc_info=True)
+            raise RuntimeError(f"InferenceService initialization failed: {e}")
     return _inference_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        logger.info("🚀 Starting up application...")
         app.state.inference_service = get_inference_service()
-        logger.info("InferenceService initialized successfully")
+        logger.info("✅ Application startup complete")
     except Exception as e:
-        logger.error(f"Error during startup: {e}")
-        app.state.inference_service = None
+        logger.critical(f"💥 STARTUP FAILED: {e}", exc_info=True)
+        raise
     yield
+    logger.info("🛑 Shutting down application...")
 
 app = FastAPI(title="Dark Pattern Detection API", lifespan=lifespan)
 
@@ -49,14 +54,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import routers after app is created
 try:
     from routes.analyze_route import router as analyze_router
     from routes.url_route import router as url_router
     app.include_router(analyze_router)
     app.include_router(url_router)
+    logger.info("✅ Routers loaded successfully")
 except ImportError as e:
-    logger.error(f"Error importing routers: {e}")
+    logger.error(f"❌ Error importing routers: {e}", exc_info=True)
+    raise
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(_: Request, exc: RequestValidationError):
@@ -77,7 +83,7 @@ async def http_exception_handler(_: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(_: Request, exc: Exception):
-    logger.exception("Unhandled server error: %s", exc)
+    logger.exception("❌ Unhandled server error: %s", exc)
     return JSONResponse(
         status_code=500,
         content={"status": "error", "message": "Internal server error"},
@@ -85,4 +91,9 @@ async def unhandled_exception_handler(_: Request, exc: Exception):
 
 @app.get("/")
 def health_check() -> dict:
-    return {"message": "Dark Pattern Detection API", "status": "running"}
+    service_status = "loaded" if _inference_service is not None else "not loaded"
+    return {
+        "message": "Dark Pattern Detection API",
+        "status": "running",
+        "inference_service": service_status,
+    }
