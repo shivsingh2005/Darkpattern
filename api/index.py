@@ -1,6 +1,8 @@
 from pathlib import Path
 import sys
 import logging
+import platform
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,9 +17,30 @@ if str(BACKEND_DIR) not in sys.path:
 
 try:
     from backend.main import app as fastapi_app
-    logger.info("Successfully imported FastAPI app")
+    logger.info("✅ Successfully imported FastAPI app")
 except Exception as e:
-    logger.error(f"Import error: {e}", exc_info=True)
+    logger.error("=" * 60)
+    logger.error("💥 FAILED TO IMPORT FastAPI app")
+    logger.error("=" * 60)
+    logger.error(f"Error: {type(e).__name__}: {e}")
+    logger.error(f"Python version: {platform.python_version()} ({platform.system()} {platform.machine()})")
+    logger.error(f"Working directory: {Path.cwd()}")
+    logger.error(f"This file: {Path(__file__).resolve()}")
+    logger.error(f"PROJECT_ROOT: {PROJECT_ROOT}")
+    logger.error(f"BACKEND_DIR: {BACKEND_DIR}")
+    logger.error(f"sys.path: {sys.path}")
+    # Check for model files at expected locations
+    model_paths = [
+        PROJECT_ROOT / "model" / "model.pkl",
+        PROJECT_ROOT / "Model" / "model.pkl",
+        PROJECT_ROOT / "model" / "vectorizer.pkl",
+        PROJECT_ROOT / "Model" / "vectorizer.pkl",
+    ]
+    for mp in model_paths:
+        logger.error(f"  Model file {mp}: {'EXISTS' if mp.exists() else 'MISSING'}")
+    logger.error("Full traceback:")
+    logger.error(traceback.format_exc())
+    logger.error("=" * 60)
     fastapi_app = None
 
 
