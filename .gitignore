@@ -5,3 +5,5 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+!Model/model.pkl
+!Model/vectorizer.pkl

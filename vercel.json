@@ -1,4 +1,20 @@
-{"outputDirectory": "build", "routes": [
-    {"src": "/(.*)", "dest": "/build/$1"},
-    {"src": "/api/(.*)", "dest": "/build/api/$1"}
-]}
+{
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.12"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
