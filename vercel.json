@@ -1,15 +1,1 @@
-{
-  "installCommand": "cd frontend && npm install --include=dev",
-  "buildCommand": "cd frontend && npm install --include=dev && npx vite build",
-  "outputDirectory": "frontend/dist",
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
-}
+{"version": 2,"builds": [{"src": "frontend/package.json","use": "@vercel/static-build","config": {"distDir": "frontend/dist"}},{"src": "api/index.py","use": "@vercel/python"}],"routes": [{"src": "/api/(.*)","dest": "/api/index.py"},{"src": "/(.*)","dest": "/frontend/dist/index.html"}],"env": {"PYTHONUNBUFFERED": "1"},"functions": {"api/index.py": {"runtime": "python3.9","memory": 1024,"maxDuration": 60}}}
