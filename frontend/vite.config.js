@@ -6,8 +6,7 @@ export default defineConfig({
   build: {
     outDir: '../build',
     emptyOutDir: true,
-    sourcemap: false,
-    minify: 'terser'
+    sourcemap: false
   },
   server: {
     port: 3000
