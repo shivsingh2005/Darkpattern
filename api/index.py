@@ -1,25 +1,42 @@
+from pathlib import Path
+import sys
 import logging
-from fastapi import FastAPI, HTTPException
-from starlette.middleware.cors import CORSMiddleware
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
-# Middleware configuration for CORS
-app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+BACKEND_DIR = PROJECT_ROOT / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.append(str(BACKEND_DIR))
 
-@app.get("/")
-def read_root():
-    logger.info("Root endpoint called")
-    return {"message": "Hello, World!"}
+try:
+    from backend.main import app as fastapi_app
+    logger.info("Successfully imported FastAPI app")
+except Exception as e:
+    logger.error(f"Import error: {e}", exc_info=True)
+    fastapi_app = None
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int):
-    logger.info(f"Fetching item with id: {item_id}")
-    if item_id < 0:
-        logger.error("Item ID must be a positive integer")
-        raise HTTPException(status_code=400, detail="Item ID must be a positive integer")
-    return {"item_id": item_id}
+
+async def app(scope, receive, send):
+    if fastapi_app is None:
+        await send({
+            "type": "http.response.start",
+            "status": 500,
+            "headers": [[b"content-type", b"application/json"]],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": b'{"error": "Application failed to initialize"}',
+        })
+        return
+
+    if scope.get("type") == "http":
+        path = scope.get("path", "")
+        if path.startswith("/api"):
+            scope = {**scope, "path": path[4:] or "/"}
+
+    await fastapi_app(scope, receive, send)
