@@ -1,5 +1,6 @@
+import os
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, Dict, List, Optional
 
 import joblib
 
@@ -7,7 +8,7 @@ from pipeline.preprocess import preprocess_text
 
 
 class InferenceService:
-    def __init__(self, model_path: str | None = None, vectorizer_path: str | None = None):
+    def __init__(self, model_path: Optional[str] = None, vectorizer_path: Optional[str] = None):
         self.model_path = Path(model_path).resolve() if model_path else self._default_model_path()
         self.vectorizer_path = (
             Path(vectorizer_path).resolve() if vectorizer_path else self._default_vectorizer_path()
@@ -23,6 +24,8 @@ class InferenceService:
 
     @staticmethod
     def _project_root() -> Path:
+        if os.environ.get("VERCEL"):
+            return Path("/var/task")
         return Path(__file__).resolve().parents[2]
 
     def _default_model_path(self) -> Path:
@@ -54,7 +57,7 @@ class InferenceService:
             "confidence": confidence,
         }
 
-    def predict_chunks(self, chunks: List[str]) -> List[Dict[str, float | int | str]]:
+    def predict_chunks(self, chunks: List[str]) -> List[Dict[str, Any]]:
         if not chunks:
             return []
 
@@ -75,7 +78,7 @@ class InferenceService:
         if hasattr(self.model, "predict_proba"):
             probabilities = self.model.predict_proba(features)
 
-        results: List[Dict[str, float | int | str]] = []
+        results: List[Dict[str, Any]] = []
         for prediction_index, (index, chunk, _) in enumerate(indexed_processed):
             prediction = int(predictions[prediction_index])
             confidence = (
