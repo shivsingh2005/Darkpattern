@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import joblib
 
-from pipeline.preprocess import preprocess_text
+from backend.pipeline.preprocess import preprocess_text
 
 
 class InferenceService:

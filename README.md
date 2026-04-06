@@ -128,7 +128,8 @@ pip install -r requirements.txt
 The required packages are:
 - fastapi==0.115.0
 - uvicorn==0.30.6
-- scikit-learn==1.7.1
+- gunicorn==23.0.0
+- scikit-learn==1.5.2
 - joblib==1.4.2
 - nltk==3.9.1
 - requests==2.32.3
@@ -171,8 +172,7 @@ yarn install
 
 ```
 bash
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port 8000 --reload
 ```
 
 The API will be available at: `http://localhost:8000`
@@ -185,7 +185,7 @@ cd frontend
 npm run dev
 ```
 
-The frontend will be available at: `http://localhost:3000`
+The frontend will be available at: `http://localhost:3001`
 
 ### Running Both Simultaneously
 
@@ -194,8 +194,7 @@ For development, you can run both the backend and frontend in separate terminals
 **Terminal 1 (Backend):**
 ```
 bash
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Terminal 2 (Frontend):**
@@ -266,7 +265,7 @@ FastAPI provides interactive API documentation at:
 
 ### Using the Frontend
 
-1. Open http://localhost:3000 in your browser
+1. Open http://localhost:3001 in your browser
 2. Enter text to analyze or paste a URL
 3. View the results
 
@@ -401,7 +400,7 @@ If port 8000 or 3000 is already in use, specify a different port:
 ```
 bash
 # Backend
-uvicorn main:app --port 8001
+uvicorn backend.main:app --app-dir . --port 8001
 
 # Frontend - update vite.config.js or run with:
 npm run dev -- --port 3001
@@ -409,7 +408,25 @@ npm run dev -- --port 3001
 
 ### Frontend Cannot Connect to Backend
 
-Ensure the backend is running at http://localhost:8000. The frontend is configured to connect to this URL by default. Check the `frontend/src/services/api.js` file for configuration.
+Ensure the backend is running at http://localhost:8000. The frontend uses `/api` by default and proxies to port 8000 in local Vite dev mode.
+
+## Deployment Recommendation
+
+This repository is now configured for production with a resilient scraper strategy.
+
+- Frontend: deploy on Vercel (static build from `frontend`)
+- Backend: deploy on Render/Railway/Fly/Docker using `gunicorn`
+- URL scraping: uses Playwright when available and automatically falls back to `requests + BeautifulSoup` when browser runtime is unavailable
+
+Set frontend environment variable:
+
+- `VITE_API_URL=<your backend url>/api`
+
+Recommended backend run command:
+
+```
+gunicorn backend.main:app -k uvicorn.workers.UvicornWorker --workers 2 --bind 0.0.0.0:$PORT --timeout 120
+```
 
 ## License
 

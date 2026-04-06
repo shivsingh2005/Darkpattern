@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import ResultCard from './ResultCard';
 
 const riskStyleMap = {
   Low: 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300',
@@ -33,6 +34,8 @@ const ResultsDashboard = ({ results }) => {
 
   const riskLevel = results.risk_level || 'Low';
   const ratio = Number(results.dark_ratio || 0);
+  const hasDetections = Boolean(results.total_dark_patterns_detected);
+  const summaryEntries = Object.entries(results.summary || {});
 
   return (
     <section className="animate-fade-in-up rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-soft">
@@ -75,27 +78,33 @@ const ResultsDashboard = ({ results }) => {
       </div>
 
       <div className="mt-6">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-          Detected Text Snippets
-        </h3>
-        {!results.detected_texts?.length ? (
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Detected Text Snippets</h3>
+
+        {!hasDetections ? (
           <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-300">
-            No dark pattern snippets detected in the current scan.
+            Clean: no dark patterns were detected in this scan.
           </div>
         ) : (
-          <div className="space-y-3">
-            {results.detected_texts.map((item, index) => (
-              <article
-                key={`${index}-${item.text?.slice(0, 18)}`}
-                className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-4"
-              >
-                <p className="text-sm text-rose-100">{item.text}</p>
-                <p className="mt-2 text-xs font-semibold text-rose-300">
-                  Confidence: {((item.confidence || 0) * 100).toFixed(2)}%
-                </p>
-              </article>
-            ))}
-          </div>
+          <>
+            {summaryEntries.length > 0 && (
+              <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                {summaryEntries.map(([category, count]) => (
+                  <div
+                    key={category}
+                    className="rounded-md border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-200"
+                  >
+                    <span className="font-semibold text-slate-100">{category}</span>: {count}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {(results.detected_texts || []).map((item, index) => (
+                <ResultCard key={`${index}-${item.text?.slice(0, 18)}`} item={item} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </section>

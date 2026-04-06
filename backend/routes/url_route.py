@@ -1,144 +1,201 @@
-import sys
-from pathlib import Path
-import re
-from urllib.parse import urlparse
+import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import AnyHttpUrl, BaseModel
 
-from pipeline.inference import InferenceService
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
-
-from webscraper.scraper import WebScraper
+from backend.pipeline.inference import InferenceService
+from backend.pipeline.llm_explainer import explain_dark_pattern
+from backend.pipeline.type_classifier import predict_type
+from webscraper.scraper import ScraperBlockedError, ScraperTimeoutError, scrape_structured
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+CATEGORIES = [
+    "Forced Action",
+    "Misdirection",
+    "Obstruction",
+    "Scarcity",
+    "Sneaking",
+    "Social Proof",
+    "Urgency",
+]
+
+SOURCE_KEYS = [
+    "urgency_scarcity",
+    "timer_countdown",
+    "popups_overlays",
+    "cta_buttons",
+    "checkout_price_text",
+    "social_proof",
+]
 
 
 class URLRequest(BaseModel):
-    url: str
+    url: AnyHttpUrl
+    explain: bool = True
 
 
-def _is_valid_url(url: str) -> bool:
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").strip()
-    if parsed.scheme not in {"http", "https"}:
-        return False
-    if not host or "." not in host:
-        return False
-    if len(host) > 253:
-        return False
-    return bool(re.fullmatch(r"[A-Za-z0-9.-]+", host))
+def _normalize_text(text: str) -> str:
+    return " ".join(str(text).split()).strip()
 
 
-def _resolve_risk_level(dark_ratio: float) -> str:
-    if dark_ratio >= 60:
-        return "High"
-    if dark_ratio >= 25:
-        return "Medium"
-    return "Low"
+def _init_summary() -> dict[str, int]:
+    return {category: 0 for category in CATEGORIES}
 
 
-def _normalize_chunk(text: str) -> str:
-    return " ".join(text.split()).strip()
+def _get_inference_service(request: Request) -> InferenceService:
+    service = getattr(request.app.state, "inference_service", None)
+    if service is None:
+        service = InferenceService()
+        request.app.state.inference_service = service
+    return service
 
 
-def _extract_chunks(scraper: WebScraper, url: str) -> list[str]:
-    html = scraper.fetch(url)
-    if html is None:
-        raise HTTPException(status_code=400, detail="Failed to fetch URL content")
+def _build_tier_one(priority_elements: dict) -> list[dict]:
+    seen: set[str] = set()
+    queue: list[dict] = []
 
-    soup = scraper.parse(html)
-    if soup is None:
-        raise HTTPException(status_code=400, detail="Failed to parse URL content")
+    for source in SOURCE_KEYS:
+        values = priority_elements.get(source, []) if isinstance(priority_elements, dict) else []
+        for raw_value in values:
+            text = _normalize_text(raw_value)
+            if len(text) < 8 or text in seen:
+                continue
+            seen.add(text)
+            queue.append({"text": text, "source": source})
 
-    for node in soup(["script", "style"]):
-        node.decompose()
+    return queue
 
-    raw_chunks: list[str] = []
 
-    for paragraph in soup.find_all("p"):
-        text = _normalize_chunk(paragraph.get_text(" ", strip=True))
-        if text:
-            raw_chunks.append(text)
+def _build_tier_two(full_text: str, tier_one_texts: set[str]) -> list[dict]:
+    queue: list[dict] = []
+    seen = set(tier_one_texts)
 
-    for button in soup.find_all("button"):
-        text = _normalize_chunk(button.get_text(" ", strip=True))
-        if text:
-            raw_chunks.append(text)
-
-    for input_button in soup.find_all("input"):
-        input_type = (input_button.get("type") or "").strip().lower()
-        if input_type in {"button", "submit"}:
-            value = _normalize_chunk(input_button.get("value") or "")
-            if value:
-                raw_chunks.append(value)
-
-    if not raw_chunks:
-        text = _normalize_chunk(soup.get_text(" ", strip=True))
-        if text:
-            raw_chunks.extend(re.split(r"(?<=[.!?])\s+", text))
-
-    filtered_chunks: list[str] = []
-    seen = set()
-    for chunk in raw_chunks:
-        cleaned = _normalize_chunk(chunk)
-        if len(cleaned) < 15:
+    for line in str(full_text).splitlines():
+        text = _normalize_text(line)
+        if text in seen:
             continue
-        if len(cleaned.split()) < 3:
+        if len(text) < 10 or len(text) > 500:
             continue
-        if len(cleaned) > 1200:
-            cleaned = cleaned[:1200]
-        if cleaned in seen:
-            continue
-        seen.add(cleaned)
-        filtered_chunks.append(cleaned)
+        seen.add(text)
+        queue.append({"text": text, "source": None})
+        if len(queue) >= 150:
+            break
 
-    if len(filtered_chunks) > 300:
-        filtered_chunks = filtered_chunks[:300]
+    return queue
 
-    return filtered_chunks
+
+async def _analyze_item(
+    service: InferenceService,
+    text: str,
+    should_explain: bool,
+) -> dict:
+    try:
+        binary_result = service.predict(text)
+    except Exception as exc:
+        logger.error("Layer 1 failed for URL text: %s", exc, exc_info=True)
+        return {
+            "text": text,
+            "is_dark_pattern": False,
+            "binary_confidence": 0.0,
+            "type": None,
+            "explanation": None,
+        }
+
+    is_dark_pattern = bool(binary_result.get("prediction") == 1)
+    binary_confidence = float(binary_result.get("confidence", 0.0))
+
+    if not is_dark_pattern:
+        return {
+            "text": text,
+            "is_dark_pattern": False,
+            "binary_confidence": binary_confidence,
+            "type": None,
+            "explanation": None,
+        }
+
+    type_result = None
+    explanation = None
+
+    try:
+        type_result = predict_type(text)
+    except Exception as exc:
+        logger.error("Layer 2 failed for URL text: %s", exc, exc_info=True)
+        type_result = None
+
+    if should_explain:
+        try:
+            category = type_result["category"] if type_result else "Unknown"
+            confidence = type_result["confidence"] if type_result else binary_confidence
+            explanation = await explain_dark_pattern(text, category, confidence)
+        except Exception as exc:
+            logger.error("Layer 3 failed for URL text: %s", exc, exc_info=True)
+            explanation = None
+
+    return {
+        "text": text,
+        "is_dark_pattern": True,
+        "binary_confidence": binary_confidence,
+        "type": type_result,
+        "explanation": explanation,
+    }
 
 
 @router.post("/detect-from-url")
-def detect_from_url(payload: URLRequest, request: Request) -> dict:
-    url = _normalize_chunk(payload.url)
-    if not url:
-        raise HTTPException(status_code=400, detail="URL cannot be empty")
-    if not _is_valid_url(url):
-        raise HTTPException(status_code=400, detail="Invalid URL. Use http:// or https://")
+async def detect_from_url(payload: URLRequest, request: Request) -> dict:
+    url = str(payload.url)
 
-    scraper = WebScraper(timeout=15)
-    chunks = _extract_chunks(scraper, url)
-    if not chunks:
-        raise HTTPException(status_code=400, detail="No usable visible text chunks found on page")
+    try:
+        scraped = await asyncio.to_thread(scrape_structured, url)
+    except ScraperBlockedError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ScraperTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Scraper failed: {exc}") from exc
 
-    service: InferenceService = request.app.state.inference_service
-    predictions = service.predict_chunks(chunks)
+    if not isinstance(scraped, dict):
+        raise HTTPException(status_code=503, detail="Scraper returned invalid response")
 
-    total_contents_scanned = len(predictions)
-    detected = [
-        {
-            "text": item["text"],
-            "confidence": item["confidence"],
-        }
-        for item in predictions
-        if item["prediction"] == 1
-    ]
+    priority_elements = scraped.get("priority_elements", {})
+    tier_one = _build_tier_one(priority_elements)
+    tier_one_texts = {item["text"] for item in tier_one}
+    tier_two = _build_tier_two(scraped.get("full_text", ""), tier_one_texts)
 
-    total_dark_patterns_detected = len(detected)
-    dark_ratio = (
-        round((total_dark_patterns_detected / total_contents_scanned) * 100, 2)
-        if total_contents_scanned > 0
-        else 0.0
-    )
+    service = _get_inference_service(request)
+
+    high_priority_findings = []
+    results = []
+    summary = _init_summary()
+
+    for item in tier_one:
+        analyzed = await _analyze_item(service, item["text"], should_explain=True)
+        high_priority_findings.append({**analyzed, "source": item["source"]})
+        results.append(analyzed)
+        if analyzed["is_dark_pattern"] and analyzed["type"]:
+            category = analyzed["type"].get("category")
+            if category in summary:
+                summary[category] += 1
+
+    for item in tier_two:
+        analyzed = await _analyze_item(service, item["text"], should_explain=payload.explain)
+        results.append(analyzed)
+        if analyzed["is_dark_pattern"] and analyzed["type"]:
+            category = analyzed["type"].get("category")
+            if category in summary:
+                summary[category] += 1
+
+    total_texts_scanned = len(results)
+    dark_patterns_found = sum(1 for entry in results if entry["is_dark_pattern"])
 
     return {
-        "total_contents_scanned": total_contents_scanned,
-        "total_dark_patterns_detected": total_dark_patterns_detected,
-        "dark_ratio": dark_ratio,
-        "risk_level": _resolve_risk_level(dark_ratio),
-        "detected_texts": detected,
+        "url": scraped.get("url", url),
+        "page_title": scraped.get("page_title", ""),
+        "total_texts_scanned": total_texts_scanned,
+        "dark_patterns_found": dark_patterns_found,
+        "high_priority_findings": high_priority_findings,
+        "results": results,
+        "summary": summary,
     }

@@ -19,14 +19,13 @@ The backend requires the following model files in the Model directory:
 
 - `Model/model.pkl` - Trained Logistic Regression model
 - `Model/vectorizer.pkl` - TF-IDF vectorizer
-- `Model/dataset.xlsx` - Training dataset
+- `Model/dark-patterns.csv` - Category training fallback dataset
 
 ## 3) Run Backend API
 
 ```
 bash
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port 8000 --reload
 ```
 
 The API will be available at: http://localhost:8000
@@ -40,7 +39,7 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at: http://localhost:3000
+The frontend will be available at: http://localhost:3001
 
 ## API Endpoints
 

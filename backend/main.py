@@ -1,18 +1,18 @@
 from contextlib import asynccontextmanager
 import logging
-import sys
-from pathlib import Path
+import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
-
 logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+)
 
 _inference_service = None
 
@@ -20,17 +20,22 @@ def get_inference_service():
     global _inference_service
     if _inference_service is None:
         try:
-            from pipeline.inference import InferenceService
+            from backend.pipeline.inference import InferenceService
             _inference_service = InferenceService()
             logger.info("✅ InferenceService initialized successfully")
         except FileNotFoundError as e:
             logger.error(f"❌ Model files not found: {e}")
-            logger.error(f"   Looking in: {Path(__file__).resolve().parents[2]}")
             raise RuntimeError(f"Model artifacts missing: {e}")
         except Exception as e:
             logger.error(f"❌ Failed to initialize InferenceService: {e}", exc_info=True)
             raise RuntimeError(f"InferenceService initialization failed: {e}")
     return _inference_service
+
+
+def _cors_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "*")
+    origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    return origins or ["*"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,15 +53,15 @@ app = FastAPI(title="Dark Pattern Detection API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 try:
-    from routes.analyze_route import router as analyze_router
-    from routes.url_route import router as url_router
+    from backend.routes.analyze_route import router as analyze_router
+    from backend.routes.url_route import router as url_router
     app.include_router(analyze_router)
     app.include_router(url_router)
     logger.info("✅ Routers loaded successfully")

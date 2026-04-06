@@ -1,76 +1,99 @@
-import axios from 'axios';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:8000');
+/**
+ * @typedef {{
+ *   category: string,
+ *   confidence: number,
+ *   all_scores: Record<string, number>
+ * }} TypeClassification
+ */
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-});
+/**
+ * @typedef {{
+ *   why: string,
+ *   psychological_mechanism: string,
+ *   harm: string,
+ *   ethical_alternative: string
+ * }} LlmExplanation
+ */
 
-const normalizeRiskLevel = (ratio) => {
-  if (ratio >= 60) return 'High';
-  if (ratio >= 25) return 'Medium';
-  return 'Low';
-};
+/**
+ * @typedef {{
+ *   text: string,
+ *   is_dark_pattern: boolean,
+ *   binary_confidence: number,
+ *   type: TypeClassification | null,
+ *   explanation: LlmExplanation | null
+ * }} AnalyzeResponse
+ */
 
-const clampRatio = (ratio) => {
-  if (typeof ratio !== 'number' || Number.isNaN(ratio)) return 0;
-  return Math.max(0, Math.min(100, Number(ratio.toFixed(2))));
-};
+/**
+ * @typedef {{
+ *   text: string,
+ *   source?: 'urgency_scarcity' | 'popups_overlays' | 'cta_buttons' | 'checkout_price_text' | 'social_proof',
+ *   is_dark_pattern: boolean,
+ *   binary_confidence: number,
+ *   type: TypeClassification | null,
+ *   explanation: LlmExplanation | null
+ * }} UrlFinding
+ */
 
-const normalizeResponse = (data) => {
-  if (
-    typeof data.total_contents_scanned === 'number' &&
-    typeof data.total_dark_patterns_detected === 'number' &&
-    typeof data.dark_ratio === 'number'
-  ) {
-    return {
-      total_contents_scanned: data.total_contents_scanned,
-      total_dark_patterns_detected: data.total_dark_patterns_detected,
-      dark_ratio: clampRatio(data.dark_ratio),
-      risk_level: data.risk_level || normalizeRiskLevel(data.dark_ratio),
-      detected_texts: Array.isArray(data.detected_texts) ? data.detected_texts : [],
-    };
-  }
+/**
+ * @typedef {{
+ *   url: string,
+ *   page_title: string,
+ *   total_texts_scanned: number,
+ *   dark_patterns_found: number,
+ *   high_priority_findings: UrlFinding[],
+ *   results: UrlFinding[],
+ *   summary: Record<string, number>
+ * }} UrlAnalyzeResponse
+ */
 
-  if (typeof data.prediction === 'number') {
-    const detected = data.prediction === 1;
-    return {
-      total_contents_scanned: 1,
-      total_dark_patterns_detected: detected ? 1 : 0,
-      dark_ratio: detected ? 100 : 0,
-      risk_level: detected ? 'High' : 'Low',
-      detected_texts: detected
-        ? [{ text: 'Input text flagged as suspicious', confidence: data.confidence ?? 0 }]
-        : [],
-    };
-  }
+async function requestJson(path, body) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
-  throw new Error('Unexpected API response format');
-};
+  const text = await response.text();
+  let payload = null;
 
-export const detectFromUrl = async (url) => {
-  const { data } = await api.post('/detect-from-url', { url });
-  return normalizeResponse(data);
-};
-
-export const detectFromText = async (text) => {
-  try {
-    const { data } = await api.post('/detect-from-text', { text });
-    return normalizeResponse(data);
-  } catch (error) {
-    if (error?.response?.status === 404) {
-      const { data } = await api.post('/analyze', { text });
-      return normalizeResponse(data);
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = null;
     }
-    throw error;
   }
-};
 
-export const extractErrorMessage = (error) => {
-  const message = error?.response?.data?.message;
-  if (typeof message === 'string' && message.trim()) return message;
-  const detail = error?.response?.data?.detail;
-  if (typeof detail === 'string' && detail.trim()) return detail;
-  return 'Something went wrong. Please try again.';
-};
+  if (!response.ok) {
+    const detail =
+      payload?.detail ||
+      payload?.message ||
+      payload?.error ||
+      `Request failed with status ${response.status}`;
+    throw new Error(String(detail));
+  }
+
+  return payload;
+}
+
+/**
+ * @param {string} text
+ * @param {boolean} [explain=true]
+ * @returns {Promise<AnalyzeResponse>}
+ */
+export async function analyzeText(text, explain = true) {
+  return requestJson('/analyze', { text, explain });
+}
+
+/**
+ * @param {string} url
+ * @param {boolean} [explain=true]
+ * @returns {Promise<UrlAnalyzeResponse>}
+ */
+export async function analyzeUrl(url, explain = true) {
+  return requestJson('/detect-from-url', { url, explain });
+}
