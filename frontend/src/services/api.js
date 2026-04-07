@@ -1,4 +1,30 @@
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_REMOTE_API_URL = 'https://darkpattern-1.onrender.com';
+
+const normalizeBaseUrl = (value) => {
+  if (!value) return '';
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+  // Avoid accidental double-prefixing when users set VITE_API_URL like ".../api".
+  return trimmed.replace(/\/+$/, '').replace(/\/api$/, '');
+};
+
+const envBaseUrl = normalizeBaseUrl(import.meta.env.VITE_API_URL);
+const isLocalHost =
+  typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const BASE_URLS = (() => {
+  // If env URL is explicitly set, respect it as the single source of truth.
+  if (envBaseUrl) {
+    return [envBaseUrl];
+  }
+
+  // In local development, try proxy first and fall back to the deployed API.
+  if (isLocalHost) {
+    return ['/api', DEFAULT_REMOTE_API_URL];
+  }
+
+  return [DEFAULT_REMOTE_API_URL];
+})();
 
 /**
  * @typedef {{
@@ -51,33 +77,65 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
  */
 
 async function requestJson(path, body) {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let lastError = null;
 
-  const text = await response.text();
-  let payload = null;
+  for (let index = 0; index < BASE_URLS.length; index += 1) {
+    const baseUrl = BASE_URLS[index];
+    const hasFallback = index < BASE_URLS.length - 1;
 
-  if (text) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = null;
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const text = await response.text();
+      let payload = null;
+
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = null;
+        }
+      }
+
+      if (!response.ok) {
+        const detail =
+          payload?.detail ||
+          payload?.error?.detail ||
+          payload?.message ||
+          payload?.error ||
+          `Request failed with status ${response.status}`;
+
+        const serverError = new Error(String(detail));
+
+        // If a local proxy/backend is missing or unhealthy, try the next base URL.
+        if (hasFallback && (response.status === 404 || response.status >= 500)) {
+          lastError = serverError;
+          continue;
+        }
+
+        throw serverError;
+      }
+
+      return payload;
+    } catch (error) {
+      if (hasFallback && error instanceof TypeError) {
+        // Network failure (for example, local backend not running).
+        lastError = error;
+        continue;
+      }
+      throw error;
     }
   }
 
-  if (!response.ok) {
-    const detail =
-      payload?.detail ||
-      payload?.message ||
-      payload?.error ||
-      `Request failed with status ${response.status}`;
-    throw new Error(String(detail));
+  if (lastError) {
+    throw lastError;
   }
 
-  return payload;
+  throw new Error('Request failed');
 }
 
 /**

@@ -183,7 +183,7 @@ async def _scrape_structured_async(url: str) -> dict[str, Any]:
 
             title = (await page.title()) or ""
             body_text = await page.evaluate("document.body ? document.body.innerText : ''")
-            if any(term.lower() in title.lower() for term in BLOCKED_TITLE_TERMS) or len(body_text) < 500:
+            if any(term.lower() in title.lower() for term in BLOCKED_TITLE_TERMS):
                 raise ScraperBlockedError("This site is blocking automated access. Try again later.")
 
             extracted = await page.evaluate(
