@@ -113,23 +113,23 @@ const Scanner = ({ onResults, onError, onSuccess, clearError }) => {
   }, [clearError, explain, onError, onResults, onSuccess, text]);
 
   return (
-    <section className="animate-fade-in-up rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-soft">
+    <section className="animate-fade-in-up surface-alt rounded-2xl p-6">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-slate-100">Detection Engine</h2>
-        <span className="text-xs uppercase tracking-wider text-slate-400">3-Layer Pipeline</span>
+        <h2 className="text-2xl font-semibold text-slate-900">Detection Engine</h2>
+        <span className="kicker">3-Layer Pipeline</span>
       </div>
 
-      <div className="mb-5 flex rounded-lg border border-slate-700 bg-slate-950/80 p-1">
+      <div className="mb-5 flex rounded-xl border border-[#ceb993] bg-[#f6ecdc] p-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             disabled={loading}
             onClick={() => handleTabSwitch(tab.id)}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               activeTab === tab.id
-                ? 'bg-indigo-500/20 text-indigo-200'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-[#0f766e] text-white shadow'
+                : 'text-[#6b5d45] hover:bg-[#ecdfc8]'
             }`}
           >
             {tab.label}
@@ -137,13 +137,13 @@ const Scanner = ({ onResults, onError, onSuccess, clearError }) => {
         ))}
       </div>
 
-      <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">
+      <label className="mb-4 flex items-center gap-2 text-sm font-medium text-[#4f5b67]">
         <input
           type="checkbox"
           checked={explain}
           disabled={loading}
           onChange={(event) => setExplain(event.target.checked)}
-          className="h-4 w-4 accent-cyan-400"
+          className="h-4 w-4 accent-emerald-700"
         />
         Generate AI explanation (Layer 3)
       </label>
@@ -156,13 +156,13 @@ const Scanner = ({ onResults, onError, onSuccess, clearError }) => {
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://example.com"
             disabled={loading}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none ring-indigo-400/40 transition focus:ring"
+            className="w-full rounded-xl border border-[#cbb48e] bg-[#fffaf0] px-4 py-3 text-sm text-[#1f2830] outline-none ring-emerald-700/30 transition focus:ring"
           />
           <button
             type="button"
             onClick={runWebsiteScan}
             disabled={isButtonDisabled}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-65"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0a4a45] disabled:cursor-not-allowed disabled:opacity-65"
           >
             {loading ? (
               <>
@@ -178,14 +178,14 @@ const Scanner = ({ onResults, onError, onSuccess, clearError }) => {
           </button>
 
           {loading && (
-            <div className="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
-              <div className="mb-2 flex items-center justify-between text-xs text-slate-300">
+            <div className="rounded-xl border border-[#cbb48e] bg-[#fff8eb] p-4">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[#6f5d40]">
                 <span>{urlStageLabel}</span>
                 <span>{Math.min(100, urlProgress)}%</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-800">
+              <div className="h-2 rounded-full bg-[#e4d5b9]">
                 <div
-                  className="h-2 rounded-full bg-gradient-to-r from-cyan-400 to-indigo-400"
+                  className="h-2 rounded-full bg-gradient-to-r from-[#c18135] to-[#0f766e]"
                   style={{ width: `${Math.min(100, urlProgress)}%` }}
                 />
               </div>
@@ -200,13 +200,13 @@ const Scanner = ({ onResults, onError, onSuccess, clearError }) => {
             onChange={(event) => setText(event.target.value)}
             placeholder="Only 2 left! Hurry!"
             disabled={loading}
-            className="w-full resize-none rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none ring-indigo-400/40 transition focus:ring"
+            className="w-full resize-none rounded-xl border border-[#cbb48e] bg-[#fffaf0] px-4 py-3 text-sm text-[#1f2830] outline-none ring-emerald-700/30 transition focus:ring"
           />
           <button
             type="button"
             onClick={runTextScan}
             disabled={isButtonDisabled}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-65"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#c18135] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#a66b2a] disabled:cursor-not-allowed disabled:opacity-65"
           >
             {loading ? (
               <>

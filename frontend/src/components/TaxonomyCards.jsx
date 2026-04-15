@@ -71,8 +71,9 @@ const taxonomy = [
 const TaxonomyCards = () => {
   return (
     <section className="animate-fade-in-up">
-      <h2 className="text-2xl font-semibold text-white">Behavioral Taxonomy (Table I)</h2>
-      <p className="mt-2 text-sm text-slate-300">
+      <p className="kicker">Pattern Lexicon</p>
+      <h2 className="text-3xl font-semibold text-slate-900">Behavioral Taxonomy (Table I)</h2>
+      <p className="ink-soft mt-2 text-sm">
         Classification of deceptive design strategies and their underlying cognitive exploitation.
       </p>
 
@@ -80,15 +81,15 @@ const TaxonomyCards = () => {
         {taxonomy.map(({ name, definition, bias, example, icon: Icon }) => (
           <article
             key={name}
-            className="group rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-indigo-400/50"
+            className="surface group rounded-xl p-4 transition-all duration-300 hover:-translate-y-1 hover:border-[#75ada8]"
           >
-            <div className="mb-3 inline-flex rounded-md bg-indigo-500/15 p-2 text-indigo-300">
+            <div className="mb-3 inline-flex rounded-md bg-[#dff3f0] p-2 text-[#0f766e]">
               <Icon size={18} />
             </div>
-            <h3 className="text-lg font-semibold text-slate-100">{name}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-300">{definition}</p>
-            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-cyan-300">Bias: {bias}</p>
-            <p className="mt-2 rounded-md border border-slate-700 bg-slate-950/70 p-2 text-xs italic text-slate-300">
+            <h3 className="text-xl font-semibold text-slate-900">{name}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#4d5b69]">{definition}</p>
+            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-[#8d5e2d]">Bias: {bias}</p>
+            <p className="mt-2 rounded-md border border-[#d9c9aa] bg-[#f8efdf] p-2 text-xs italic text-[#4f5f6e]">
               {example}
             </p>
           </article>

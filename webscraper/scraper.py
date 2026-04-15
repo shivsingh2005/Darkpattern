@@ -316,7 +316,12 @@ def scrape_structured(url: str) -> dict[str, Any]:
     if "executable" in message or "browser" in message:
       return _scrape_structured_fallback(url)
     raise
-  except (ImportError, ModuleNotFoundError):
+  except (ImportError, ModuleNotFoundError, NotImplementedError):
+    return _scrape_structured_fallback(url)
+  except RuntimeError as exc:
+    # Some Windows/Python builds can raise runtime errors while creating subprocesses.
+    if "subprocess" in str(exc).lower() or "event loop" in str(exc).lower():
+      return _scrape_structured_fallback(url)
     return _scrape_structured_fallback(url)
 
 
