@@ -1,6 +1,6 @@
-# Dark Pattern Detection API
+# Dark Pattern Detection Platform
 
-A FastAPI-based backend service for detecting dark patterns in text and web content using machine learning. This project implements a text classification model trained to identify deceptive patterns in text strings.
+An end-to-end platform for detecting dark patterns in text and web content using machine learning, structured scraping, and explainable analysis. It includes a FastAPI backend and a React frontend with a multi-section research/policy dashboard.
 
 ## Table of Contents
 
@@ -27,6 +27,13 @@ This project is a dark pattern detection system that uses machine learning to cl
 - A trained Logistic Regression model for text classification
 - TF-IDF vectorization for feature extraction
 - A web scraper module for fetching web content
+
+The platform now supports:
+
+- Website and text scan modes in a unified detection workspace
+- Layered detection pipeline (binary classification, type classification, explainability)
+- Detailed downloadable website reports with risk score, severity, source distribution, and findings
+- Sticky section-based navigation (Scanner, Research, Policy) for faster workflow
 
 ## Project Structure
 
@@ -68,11 +75,12 @@ Darkpattern/
 
 - **Text Classification**: Detects dark patterns in text
 - **URL Analysis**: Scan websites for dark patterns
+- **Detailed Report Export**: Download detailed scan reports with executive summary and prioritized findings
 - **FastAPI Backend**: Modern, fast Python web framework
-- **React Frontend**: User-friendly web interface
+- **React Frontend**: Full-page responsive interface with scanner, results dashboard, research taxonomy, and policy sections
 - **RESTful API**: Easy to integrate with other applications
 - **Confidence Score**: Provides prediction confidence
-- **Web Scraper**: Fetch and analyze web content
+- **Resilient Web Scraper**: Uses Playwright when available and falls back to requests + BeautifulSoup automatically
 
 ## Tech Stack
 
@@ -187,6 +195,8 @@ npm run dev
 
 The frontend will be available at: `http://localhost:3001`
 
+The development server proxies `/api/*` calls to `http://127.0.0.1:8000`.
+
 ### Running Both Simultaneously
 
 For development, you can run both the backend and frontend in separate terminals:
@@ -261,13 +271,25 @@ FastAPI provides interactive API documentation at:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
+### API Error Format
+
+The backend returns errors in a consistent shape:
+
+```json
+{
+  "status": "error",
+  "message": "<error message>"
+}
+```
+
 ## Usage Examples
 
 ### Using the Frontend
 
 1. Open http://localhost:3001 in your browser
-2. Enter text to analyze or paste a URL
-3. View the results
+2. Use Website Scan or Text Scan in the Detection Engine
+3. Review findings in the results dashboard
+4. Download the detailed report for URL scans
 
 ### Using cURL
 
@@ -395,7 +417,7 @@ This should be automatically handled. If you still encounter this error, ensure 
 
 ### Port Already in Use
 
-If port 8000 or 3000 is already in use, specify a different port:
+If port 8000 or 3001 is already in use, specify a different port:
 
 ```
 bash
@@ -420,7 +442,13 @@ This repository is now configured for production with a resilient scraper strate
 
 Set frontend environment variable:
 
-- `VITE_API_URL=<your backend url>/api`
+- `VITE_API_URL=<your backend url>`
+
+Example:
+
+- `VITE_API_URL=https://your-backend-domain.com`
+
+Note: Do not append `/api` to `VITE_API_URL`. The frontend normalizes this and handles local `/api` proxy fallback in development.
 
 Recommended backend run command:
 

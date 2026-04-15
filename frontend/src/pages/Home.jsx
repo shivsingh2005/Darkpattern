@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Hero from '../components/Hero';
+import Navbar from '../components/Navbar';
 import ResearchOverview from '../components/ResearchOverview';
 import TaxonomyCards from '../components/TaxonomyCards';
 import LegalFramework from '../components/LegalFramework';
@@ -34,7 +35,7 @@ const Home = () => {
   }, [error, success]);
 
   return (
-    <main className="paper-grid relative mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
+    <main id="top" className="paper-grid relative flex w-full max-w-none flex-col gap-6 px-2 py-5 md:px-4 md:py-8">
       <div className="pointer-events-none absolute -left-20 top-24 h-56 w-56 rounded-full bg-emerald-700/15 blur-3xl" />
       <div className="pointer-events-none absolute -right-12 top-[36rem] h-64 w-64 rounded-full bg-amber-600/20 blur-3xl" />
 
@@ -43,9 +44,11 @@ const Home = () => {
         <Toast type="success" message={success} />
       </div>
 
+      <Navbar />
+
       <Hero />
 
-      <section className="animate-fade-in-up surface relative rounded-3xl p-6 md:p-8">
+      <section id="workspace" className="section-anchor animate-fade-in-up surface relative rounded-3xl p-5 md:p-7">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="kicker">Core Workspace</p>
@@ -61,7 +64,7 @@ const Home = () => {
           </div>
         </div>
 
-        <section className="grid gap-6 xl:grid-cols-12">
+        <section className="grid gap-5 xl:grid-cols-12">
           <div className="xl:col-span-5">
             <Scanner
               onResults={(payload) => {
@@ -90,7 +93,7 @@ const Home = () => {
         </section>
       </section>
 
-      <section className="space-y-6">
+      <section id="research" className="section-anchor space-y-5">
         <div className="surface rounded-2xl px-5 py-4">
           <p className="kicker">Research and Policy Context</p>
           <p className="ink-soft mt-2 text-sm">
@@ -99,7 +102,9 @@ const Home = () => {
         </div>
         <ResearchOverview />
         <TaxonomyCards />
-        <LegalFramework />
+        <div id="policy" className="section-anchor">
+          <LegalFramework />
+        </div>
       </section>
 
       <footer className="surface rounded-2xl px-5 py-4 text-center text-xs font-medium text-[#6c5b42]">
